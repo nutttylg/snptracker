@@ -294,7 +294,7 @@
             </div>
             <div class="status">
                 <span><span class="status-dot active"></span>Status: <strong id="proposalStatus">Active</strong></span>
-                <span class="refresh-indicator">Auto-refresh: <span id="countdown">30s</span></span>
+                <span class="refresh-indicator">Auto-refresh: <span id="countdown">1s</span></span>
                 <a href="https://snapshot.box/#/s:usualmoney.eth/proposal/0x14df63cd930e222815c714287fa8f9a4cd212bb86120c7145ee7781a97ccf4d7" target="_blank" class="link-button">View on Snapshot ↗</a>
             </div>
         </div>
@@ -349,7 +349,7 @@
     <script>
         const PROPOSAL_ID = '0x14df63cd930e222815c714287fa8f9a4cd212bb86120c7145ee7781a97ccf4d7';
         const GRAPHQL_ENDPOINT = 'https://hub.snapshot.org/graphql';
-        const REFRESH_INTERVAL = 30000; // 30 seconds
+        const REFRESH_INTERVAL = 1000; // 1 second
 
         let allVotes = [];
         let countdownTimer;
@@ -491,7 +491,7 @@
 
         // Countdown timer
         function startCountdown() {
-            let seconds = 30;
+            let seconds = 1;
             const countdownEl = document.getElementById('countdown');
 
             if (countdownTimer) clearInterval(countdownTimer);
@@ -501,7 +501,7 @@
                 countdownEl.textContent = `${seconds}s`;
 
                 if (seconds <= 0) {
-                    seconds = 30;
+                    seconds = 1;
                     refresh();
                 }
             }, 1000);
