@@ -271,9 +271,109 @@
         .link-button:hover {
             background: #444;
         }
+
+        .milestone-alert {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 9999;
+            padding: 40px 60px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            animation: slideIn 0.5s ease-out, pulse 2s ease-in-out infinite;
+            display: none;
+        }
+
+        .milestone-alert.active {
+            display: block;
+        }
+
+        .milestone-alert.green {
+            background: linear-gradient(135deg, #51cf66 0%, #37b24d 100%);
+            border: 3px solid #2f9e44;
+        }
+
+        .milestone-alert.red {
+            background: linear-gradient(135deg, #ff6b6b 0%, #fa5252 100%);
+            border: 3px solid #f03e3e;
+        }
+
+        .milestone-alert h2 {
+            font-size: 48px;
+            margin-bottom: 10px;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .milestone-alert p {
+            font-size: 24px;
+            color: #fff;
+            margin-bottom: 20px;
+        }
+
+        .milestone-close {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid #fff;
+            color: #fff;
+            padding: 10px 30px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .milestone-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translate(-50%, -60%);
+                opacity: 0;
+            }
+            to {
+                transform: translate(-50%, -50%);
+                opacity: 1;
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: translate(-50%, -50%) scale(1);
+            }
+            50% {
+                transform: translate(-50%, -50%) scale(1.02);
+            }
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 9998;
+            display: none;
+        }
+
+        .overlay.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
+    <div class="overlay" id="overlay"></div>
+    <div class="milestone-alert" id="milestoneAlert">
+        <h2 id="alertEmoji">🎉</h2>
+        <p id="alertMessage">1 MILLION VOTING POWER REACHED!</p>
+        <div id="alertDetails" style="font-size: 18px; margin-top: 10px;"></div>
+        <button class="milestone-close" onclick="closeAlert()">Got it!</button>
+    </div>
+
     <div class="container">
         <div class="header">
             <h1>📊 Snapshot Vote Tracker</h1>
@@ -353,6 +453,8 @@
 
         let allVotes = [];
         let countdownTimer;
+        let milestoneReached = false;
+        const MILESTONE_THRESHOLD = 1000000; // 1 million voting power
 
         // Fetch proposal info
         async function fetchProposal() {
@@ -386,13 +488,50 @@
                 document.getElementById('totalVP').textContent = proposal.scores_total.toLocaleString('en-US', {maximumFractionDigits: 0});
 
                 // Update score cards
-                document.getElementById('forScore').textContent = proposal.scores[0]?.toLocaleString('en-US', {maximumFractionDigits: 0}) || '0';
-                document.getElementById('againstScore').textContent = proposal.scores[1]?.toLocaleString('en-US', {maximumFractionDigits: 0}) || '0';
-                document.getElementById('abstainScore').textContent = proposal.scores[2]?.toLocaleString('en-US', {maximumFractionDigits: 0}) || '0';
+                const forScore = proposal.scores[0] || 0;
+                const againstScore = proposal.scores[1] || 0;
+                const abstainScore = proposal.scores[2] || 0;
+
+                document.getElementById('forScore').textContent = forScore.toLocaleString('en-US', {maximumFractionDigits: 0});
+                document.getElementById('againstScore').textContent = againstScore.toLocaleString('en-US', {maximumFractionDigits: 0});
+                document.getElementById('abstainScore').textContent = abstainScore.toLocaleString('en-US', {maximumFractionDigits: 0});
+
+                // Check for 1 million milestone
+                if (!milestoneReached && proposal.scores_total >= MILESTONE_THRESHOLD) {
+                    milestoneReached = true;
+                    showMilestoneAlert(forScore, againstScore, proposal.scores_total);
+                }
 
             } catch (error) {
                 console.error('Error fetching proposal:', error);
             }
+        }
+
+        // Show milestone alert
+        function showMilestoneAlert(forScore, againstScore, totalVP) {
+            const alert = document.getElementById('milestoneAlert');
+            const overlay = document.getElementById('overlay');
+            const isForWinning = forScore > againstScore;
+
+            // Set color based on winning side
+            alert.className = 'milestone-alert active ' + (isForWinning ? 'green' : 'red');
+            overlay.className = 'overlay active';
+
+            // Update content
+            document.getElementById('alertEmoji').textContent = isForWinning ? '✅ 🚀' : '❌ 🔴';
+            document.getElementById('alertMessage').textContent = '1 MILLION VOTING POWER REACHED!';
+            document.getElementById('alertDetails').innerHTML = `
+                <strong>${totalVP.toLocaleString('en-US', {maximumFractionDigits: 0})} Total VP</strong><br>
+                <span style="color: ${isForWinning ? '#c3fae8' : '#ffe3e3'};">
+                    ${isForWinning ? 'FOR' : 'AGAINST'} is leading with ${Math.max(forScore, againstScore).toLocaleString('en-US', {maximumFractionDigits: 0})} VP
+                </span>
+            `;
+        }
+
+        // Close alert
+        function closeAlert() {
+            document.getElementById('milestoneAlert').classList.remove('active');
+            document.getElementById('overlay').classList.remove('active');
         }
 
         // Fetch votes
