@@ -110,6 +110,16 @@
             font-size: 14px;
         }
 
+        .filter-select {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
         .votes-table {
             background: #1a1a1a;
             border: 1px solid #333;
@@ -341,6 +351,12 @@
         </div>
 
         <div class="filters">
+            <span class="filter-label">Sort by:</span>
+            <select id="sortByFilter" class="filter-select">
+                <option value="vp-desc">Voting Power (Highest)</option>
+                <option value="time-asc">Time (Oldest First)</option>
+                <option value="time-desc">Time (Newest First)</option>
+            </select>
             <span class="filter-label">Min Voting Power:</span>
             <input type="number" id="minVPFilter" class="filter-input" value="0" min="0" step="1000" placeholder="e.g., 10000">
             <span class="filter-label">Show top:</span>
@@ -377,10 +393,18 @@
         const GRAPHQL_ENDPOINT = 'https://hub.snapshot.org/graphql';
         const REFRESH_INTERVAL = 1000; // 1 second
 
+        // ========================================
+        // WEBHOOK CONFIGURATION
+        // Set your webhook URL here (e.g., Discord, Slack, or custom endpoint)
+        const WEBHOOK_URL = 'https://discord.com/api/webhooks/1438559013783601222/ElwedDwiOmaZkqGBFarX8e39b73Qobh8B6stPI-vYYGTVdVq5S4srZKlQnExXsz0Nefm';
+        // ========================================
+
         let allVotes = [];
         let countdownTimer;
-        let milestoneReached = false;
-        const MILESTONE_THRESHOLD = 1000000; // 1 million voting power
+        let milestone1MReached = false;
+        let milestone2MReached = false;
+        const MILESTONE_1M = 1000000; // 1 million voting power
+        const MILESTONE_2M = 2000000; // 2 million voting power
 
         // Fetch proposal info
         async function fetchProposal() {
@@ -423,9 +447,16 @@
                 document.getElementById('abstainScore').textContent = abstainScore.toLocaleString('en-US', {maximumFractionDigits: 0});
 
                 // Check for 1 million milestone
-                if (!milestoneReached && proposal.scores_total >= MILESTONE_THRESHOLD) {
-                    milestoneReached = true;
-                    showMilestoneAlert(forScore, againstScore, proposal.scores_total);
+                if (!milestone1MReached && proposal.scores_total >= MILESTONE_1M) {
+                    milestone1MReached = true;
+                    showMilestoneAlert(forScore, againstScore, proposal.scores_total, '1M');
+                }
+
+                // Check for 2 million milestone
+                if (!milestone2MReached && proposal.scores_total >= MILESTONE_2M) {
+                    milestone2MReached = true;
+                    showMilestoneAlert(forScore, againstScore, proposal.scores_total, '2M');
+                    sendWebhookAlert(forScore, againstScore, proposal.scores_total);
                 }
 
             } catch (error) {
@@ -434,19 +465,19 @@
         }
 
         // Show milestone alert with SOUND
-        function showMilestoneAlert(forScore, againstScore, totalVP) {
+        function showMilestoneAlert(forScore, againstScore, totalVP, milestone) {
             const isForWinning = forScore > againstScore;
             const indicator = document.getElementById('soundIndicator');
 
             // Play sound based on winning side
             if (isForWinning) {
                 playGreenAlert(); // High pitch success sound
-                indicator.textContent = '✅ 🔊 1M VP REACHED - FOR WINNING!';
+                indicator.textContent = `✅ 🔊 ${milestone} VP REACHED - FOR WINNING!`;
                 indicator.style.borderColor = '#51cf66';
                 indicator.style.color = '#51cf66';
             } else {
                 playRedAlert(); // Low pitch warning sound
-                indicator.textContent = '❌ 🔊 1M VP REACHED - AGAINST WINNING!';
+                indicator.textContent = `❌ 🔊 ${milestone} VP REACHED - AGAINST WINNING!`;
                 indicator.style.borderColor = '#ff6b6b';
                 indicator.style.color = '#ff6b6b';
             }
@@ -455,7 +486,50 @@
             setTimeout(() => indicator.classList.remove('active'), 3000);
 
             // Log to console
-            console.log(`🚨 MILESTONE ALERT: ${totalVP.toLocaleString()} Total VP | ${isForWinning ? 'FOR' : 'AGAINST'} leading with ${Math.max(forScore, againstScore).toLocaleString()} VP`);
+            console.log(`🚨 MILESTONE ALERT (${milestone}): ${totalVP.toLocaleString()} Total VP | ${isForWinning ? 'FOR' : 'AGAINST'} leading with ${Math.max(forScore, againstScore).toLocaleString()} VP`);
+        }
+
+        // Send webhook alert for 2M milestone
+        async function sendWebhookAlert(forScore, againstScore, totalVP) {
+            if (!WEBHOOK_URL || WEBHOOK_URL === 'YOUR_WEBHOOK_URL_HERE') {
+                console.log('⚠️ Webhook URL not configured. Skipping webhook alert.');
+                return;
+            }
+
+            const isForWinning = forScore > againstScore;
+            const winningVote = isForWinning ? 'FOR' : 'AGAINST';
+            const winningScore = Math.max(forScore, againstScore);
+            const losingScore = Math.min(forScore, againstScore);
+            const margin = winningScore - losingScore;
+
+            const message = {
+                content: `🚨 **2 MILLION VP MILESTONE REACHED** 🚨\n\n` +
+                         `**Total Voting Power:** ${totalVP.toLocaleString()}\n` +
+                         `**Winner:** ${winningVote} ${isForWinning ? '✅' : '❌'}\n` +
+                         `**Scores:**\n` +
+                         `  • FOR: ${forScore.toLocaleString()}\n` +
+                         `  • AGAINST: ${againstScore.toLocaleString()}\n` +
+                         `**Margin:** ${margin.toLocaleString()} VP\n\n` +
+                         `[View Proposal](https://snapshot.box/#/s:usualmoney.eth/proposal/0x14df63cd930e222815c714287fa8f9a4cd212bb86120c7145ee7781a97ccf4d7)`,
+                username: 'Snapshot Vote Tracker',
+                avatar_url: 'https://cdn.stamp.fyi/space/usualmoney.eth?s=164'
+            };
+
+            try {
+                const response = await fetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(message)
+                });
+
+                if (response.ok) {
+                    console.log('✅ Webhook alert sent successfully');
+                } else {
+                    console.error('❌ Webhook failed:', response.status, response.statusText);
+                }
+            } catch (error) {
+                console.error('❌ Error sending webhook:', error);
+            }
         }
 
         // Play GREEN alert sound (success - high pitch)
@@ -509,12 +583,26 @@
         // Fetch votes
         async function fetchVotes() {
             const topCount = parseInt(document.getElementById('topVotesFilter').value) || 50;
+            const sortBy = document.getElementById('sortByFilter').value;
+
+            // Determine orderBy and orderDirection based on sort selection
+            let orderBy = 'vp';
+            let orderDirection = 'desc';
+
+            if (sortBy === 'time-asc') {
+                orderBy = 'created';
+                orderDirection = 'asc';
+            } else if (sortBy === 'time-desc') {
+                orderBy = 'created';
+                orderDirection = 'desc';
+            }
+
             const query = `
                 query Votes {
                     votes(
                         first: ${topCount},
-                        orderBy: "vp",
-                        orderDirection: desc,
+                        orderBy: "${orderBy}",
+                        orderDirection: ${orderDirection},
                         where: { proposal: "${PROPOSAL_ID}" }
                     ) {
                         id
@@ -625,6 +713,7 @@
         }
 
         // Filter listeners
+        document.getElementById('sortByFilter').addEventListener('change', fetchVotes);
         document.getElementById('minVPFilter').addEventListener('input', renderVotes);
         document.getElementById('topVotesFilter').addEventListener('change', fetchVotes);
 
